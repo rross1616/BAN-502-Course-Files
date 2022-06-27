@@ -1,0 +1,143 @@
+## Linear Regression Example with Diagnostics
+Libraries
+```{r,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+library(lmtest) #for the Durbin-Watson test
+```
+
+Read-in the dataset
+```{R}
+realestate = read_csv("real_estate.csv")
+```
+
+Examine the data  
+```{r}
+str(realestate)
+summary(realestate)
+```
+
+Confirmed no missing data. Let's visualize and then build a linear regression model. 
+```{r}
+ggpairs(realestate)
+```
+
+Looks like Distance_to_Transit is the strongest correlated. However, the relationship may be somewhat nonlinear. Let's plot it on it's own to see more closely.  
+```{r}
+ggplot(realestate,aes(x=Distance_to_Transit,y=Price_Unit_Area)) + geom_point(alpha=0.5) + theme_bw()
+```
+
+This chart suggests something of a linear relationship between these two variables, but there appears to be (perhaps) three separate groups of age and charges relationships. Let's go ahead and build a linear regression model and then look at regression diagnostics (recognizing that we may not get a good model at this point).
+
+```{r}
+#reusing code from before (just changing names where needed)
+real_estate_simple = recipe(Price_Unit_Area ~ Distance_to_Transit, realestate)
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(real_estate_simple)
+
+lm_fit = fit(lm_wflow, realestate)
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+```
+
+Let's look at this regression line on our plot.
+```{r}
+ggplot(realestate, aes(x=Distance_to_Transit,y=Price_Unit_Area)) + geom_point() + 
+  geom_smooth(method="lm",se=FALSE, color="red") + theme_bw()
+```
+
+How does this model look?
+
+How do we fare as far as our linear regression assumptions go?  
+
+**Assumption 1:** The predictor and response variable have a linear relationship  
+As noted above, it seems "reasonable" to say that there is something of a linear relationship between these two variables, but there is definitely a nonlinear effect present.  
+
+**Assumption 2:** Model errors (residuals) are independent  
+Let's use the Durbin-Watson Test to examine independence of residuals. The dwtest function is from the lmtest package.  
+```{r}
+dwtest(lm_fit$fit$fit$fit)
+```
+We fail to reject the null hypothesis with a p-value greater than 0.05. This suggests that the residuals are likely independent.  
+
+**Assumption 3:** Model residuals exhibit constant variance  
+Examine a plot of residuals.  
+```{r}
+realestate = realestate %>% mutate(resid1 = lm_fit$fit$fit$fit$residuals) #add the model residuals to our data frame
+ggplot(realestate,aes(x=Distance_to_Transit,y=resid1)) + geom_point() + theme_bw()
+```
+A non-linear effect is present.
+
+**Assumption 4:** Model residuals are Normally-distributed  
+Examine a histogram of the residuals.  
+```{r}
+ggplot(realestate,aes(x=resid1)) + geom_histogram() + theme_bw()
+```
+
+The residuals histogram is reasonably Normal. 
+
+Let's do a little bit of feature engineering to see if we address the nonlinear relationship between our predictor and response. Tidymodels makes this easy by modifying the recipe.  
+```{r}
+real_estate_simple = recipe(Price_Unit_Area ~ Distance_to_Transit, realestate) %>%
+  step_sqrt(all_predictors())
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(real_estate_simple)
+
+lm_fit = fit(lm_wflow, realestate)
+
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+```
+
+Transforming the predictor improves the model's R-squared value.  
+```{r}
+ggplot(realestate, aes(x=sqrt(Distance_to_Transit),y=Price_Unit_Area)) + geom_point() + 
+  geom_smooth(method="lm",se=FALSE, color="red") + theme_bw()
+```
+Further diagnostics.  
+```{r}
+dwtest(lm_fit$fit$fit$fit)
+```
+```{r}
+realestate = realestate %>% mutate(resid2 = lm_fit$fit$fit$fit$residuals) #add the model residuals to our data frame
+ggplot(realestate,aes(x=sqrt(Distance_to_Transit),y=resid2)) + geom_point() + theme_bw()
+```
+```{r}
+ggplot(realestate,aes(x=resid2)) + geom_histogram() + theme_bw()
+```
+
+How do we make predictions when we have a transformed variable in our model? Use the predict function as usual.   
+```{r}
+#Manually
+55.22589 + -0.60430*sqrt(100)
+55.22589 + -0.60430*sqrt(1000)
+
+#Using predict function
+testdata = data.frame(Distance_to_Transit = c(100,1000))
+predict(lm_fit, new_data = testdata)
+```
+
+
+
+
+
+

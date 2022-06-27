@@ -1,0 +1,49 @@
+```{r}
+library(tidyverse)
+library(VIM)
+library(mice)
+library(tidymodels)
+library(naniar) #visualizing missingness
+library(skimr) #alternative way to view dataset summaries
+library(UpSetR)
+```
+
+```{r}
+grades = read.csv("class-grades.csv")
+```
+
+```{r}
+vim_plot = aggr(grades, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+```
+
+```{r}
+vis_miss(grades)
+```
+
+```{r}
+grades_rowdel = grades %>% drop_na() 
+#alternatively can specify which variable(s) on which to do the drop_na
+#drop_na(Age)
+skim(grades_rowdel)
+```
+
+```{r}
+grades_coldel = grades %>% drop_na() 
+vim_plot = aggr(grades_coldel, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+skim(grades_coldel)
+```
+
+```{r}
+set.seed(123) #sets seed for random number generator
+imp_grades = mice(grades, m=5, method='pmm', printFlag=FALSE)
+#m is the number of imputations, 5 is a reasonable value as a default
+#pmm is "predictive mean matching" = imputation method for numeric data
+#printFlag reduces amount of output
+summary(imp_grades)
+```
+
+```{r}
+grades_complete = complete(imp_grades) 
+summary(grades_complete)
+```
+
